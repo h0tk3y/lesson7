@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RSS Reader</string>
+    <string name="mnuChangeSource_title">Choose feed</string>
+    <string name="dlgInput_title">Enter a feed URL</string>
+    <string name="toaFetchFailed" type="id">Fetching feed failed</string>
 </resources>

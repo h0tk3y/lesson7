@@ -20,8 +20,9 @@ public class BrowseActivity extends Activity {
                 return false;
             }
         });
+        wv.getSettings().setBuiltInZoomControls(true);
 
         wv.getSettings().setJavaScriptEnabled(true);
         wv.loadUrl(getIntent().getStringExtra("uri"));
     }
-}                          abstract
+}
