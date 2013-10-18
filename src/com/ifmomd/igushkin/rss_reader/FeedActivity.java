@@ -5,7 +5,10 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Html;
 import android.text.InputType;
+import android.text.method.LinkMovementMethod;
+import android.text.method.MovementMethod;
 import android.view.*;
 import android.widget.*;
 
@@ -26,7 +29,7 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
         setContentView(R.layout.feed_activity_layout);
         lstItems = (ListView) findViewById(R.id.lstItems);
         rssItems = new ArrayList<RSSItem>();
-        lstItems.setAdapter(new ArrayAdapter<RSSItem>(this, android.R.layout.simple_list_item_1, android.R.id.text1, rssItems));
+        lstItems.setAdapter(new RSSListAdapter(rssItems));
         lstItems.setOnItemClickListener(this);
         startFetchingFeed();
     }
@@ -116,8 +119,47 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
             } else {
                 workingList.addAll(rssItems);
             }
-            if (lstItems.getAdapter() instanceof ArrayAdapter)
-                ((ArrayAdapter) lstItems.getAdapter()).notifyDataSetChanged();
+            if (lstItems.getAdapter() instanceof RSSListAdapter)
+                ((RSSListAdapter) lstItems.getAdapter()).notifyDataSetChanged();
+        }
+    }
+
+    class RSSListAdapter extends BaseAdapter {
+
+        RSSListAdapter(ArrayList<RSSItem> items) {
+            if (items == null)
+                this.items = new ArrayList<RSSItem>();
+            else
+                this.items = items;
+        }
+
+        List<RSSItem> items;
+
+        @Override
+        public int getCount() {
+            return items.size();
+        }
+
+        @Override
+        public Object getItem(int position) {
+            return items.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return 0;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View v = convertView != null? v = convertView : getLayoutInflater().inflate(android.R.layout.simple_list_item_2, null);
+            ((TextView)v.findViewById(android.R.id.text1)).setText(((RSSItem)getItem(position)).title);
+            if (((RSSItem) ((RSSItem) getItem(position))).description != null)
+                ((TextView)v.findViewById(android.R.id.text2)).setText(Html.fromHtml(((RSSItem) getItem(position)).description));
+            else
+                ((TextView)v.findViewById(android.R.id.text2)).setText("");
+            ((TextView)v.findViewById(android.R.id.text2)).setMovementMethod(LinkMovementMethod.getInstance());
+            return v;
         }
     }
 }
