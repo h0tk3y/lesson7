@@ -159,6 +159,7 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
             else
                 ((TextView)v.findViewById(android.R.id.text2)).setText("");
             ((TextView)v.findViewById(android.R.id.text2)).setMovementMethod(LinkMovementMethod.getInstance());
+            ((TextView)v.findViewById(android.R.id.text2)).setMaxLines(3);
             return v;
         }
     }

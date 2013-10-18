@@ -68,7 +68,7 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
                                     r.link = property.getAttributes().getNamedItem("href").getTextContent();
                                 else
                                     r.link = property.getFirstChild().getNodeValue();
-                            } else if (name.equalsIgnoreCase("description")) {
+                            } else if (name.equalsIgnoreCase("description") || name.equalsIgnoreCase("summary")) {
                                 StringBuilder text = new StringBuilder();
                                 NodeList chars = property.getChildNodes();
                                 for (int k = 0; k < chars.getLength(); k++) {
