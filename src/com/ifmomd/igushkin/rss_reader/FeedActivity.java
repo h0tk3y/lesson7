@@ -29,8 +29,9 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
         setContentView(R.layout.feed_activity_layout);
         lstItems = (ListView) findViewById(R.id.lstItems);
         rssItems = new ArrayList<RSSItem>();
-        lstItems.setAdapter(new RSSListAdapter(rssItems));
+        lstItems.setItemsCanFocus(false);
         lstItems.setOnItemClickListener(this);
+        lstItems.setAdapter(new RSSListAdapter(rssItems));
         startFetchingFeed();
     }
 
@@ -152,14 +153,20 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            View v = convertView != null? v = convertView : getLayoutInflater().inflate(android.R.layout.simple_list_item_2, null);
+            View v;
+            if (convertView != null)  v = convertView;
+            else {
+                v = getLayoutInflater().inflate(android.R.layout.simple_list_item_2, null);
+                ((TextView)v.findViewById(android.R.id.text2)).setMovementMethod(LinkMovementMethod.getInstance());
+                ((TextView)v.findViewById(android.R.id.text2)).setMaxLines(3);
+            }
             ((TextView)v.findViewById(android.R.id.text1)).setText(((RSSItem)getItem(position)).title);
             if (((RSSItem) ((RSSItem) getItem(position))).description != null)
                 ((TextView)v.findViewById(android.R.id.text2)).setText(Html.fromHtml(((RSSItem) getItem(position)).description));
             else
                 ((TextView)v.findViewById(android.R.id.text2)).setText("");
-            ((TextView)v.findViewById(android.R.id.text2)).setMovementMethod(LinkMovementMethod.getInstance());
-            ((TextView)v.findViewById(android.R.id.text2)).setMaxLines(3);
+            ((TextView)v.findViewById(android.R.id.text1)).setFocusable(false);
+            ((TextView)v.findViewById(android.R.id.text2)).setFocusable(false);
             return v;
         }
     }
