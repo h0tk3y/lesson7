@@ -28,6 +28,8 @@ import java.util.List;
  */
 public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
 
+    private enum RSSFormat {Common, StackOverflow}
+
     @Override
     protected List<RSSItem> doInBackground(String... params) {
         List<RSSItem> result = null;
@@ -44,13 +46,14 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
                     DocumentBuilder db = dbf.newDocumentBuilder();
                     Document d = db.parse(e.getContent());
                     Element n = (Element) d.getDocumentElement();
-                    /*if ("rdf:RDF".equals(n.getName())) { //XML v1.0
-                        result = new ArrayList<RSSItem>();
 
-                    } else
-                    if ("rss".equals(n.getName())) {     //XML v2.0*/
+                    RSSFormat format = RSSFormat.Common;
                     result = new ArrayList<RSSItem>();
                     NodeList items = d.getElementsByTagName("item");
+                    if (items.getLength() == 0) {
+                        items = d.getElementsByTagName("entry");
+                        format = RSSFormat.StackOverflow;
+                    }
                     for (int i = 0; i < items.getLength(); i++) {
                         RSSItem r = new RSSItem();
                         Node item = items.item(i);
@@ -61,7 +64,10 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
                             if (name.equalsIgnoreCase("title")) {
                                 r.title = property.getFirstChild().getNodeValue();
                             } else if (name.equalsIgnoreCase("link")) {
-                                r.link = property.getFirstChild().getNodeValue();
+                                if (format == RSSFormat.StackOverflow)
+                                    r.link = property.getAttributes().getNamedItem("href").getTextContent();
+                                else
+                                    r.link = property.getFirstChild().getNodeValue();
                             } else if (name.equalsIgnoreCase("description")) {
                                 StringBuilder text = new StringBuilder();
                                 NodeList chars = property.getChildNodes();
@@ -83,8 +89,9 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
                 ex.printStackTrace();
             } catch (IOException ex) {
                 ex.printStackTrace();
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
-
         }
         return result;
     }

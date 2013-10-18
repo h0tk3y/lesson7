@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.*;
 import android.widget.*;
 
@@ -33,7 +34,7 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putString("feed",feedURL);
+        outState.putString("feed", feedURL);
     }
 
     @Override
@@ -60,17 +61,18 @@ public class FeedActivity extends Activity implements AdapterView.OnItemClickLis
         if (item.getItemId() == R.id.mnuChangeSource) {
             final EditText input = new EditText(this);
             input.setText(feedURL.toString());
+            input.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
+            input.setSelection(0,input.getText().length());
             new AlertDialog.Builder(this)
                     .setTitle(R.string.dlgInput_title)
                     .setView(input)
-                    .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    .setPositiveButton(getString(R.string.dlgChangeFeed_Ok), new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int whichButton) {
                             feedURL = input.getText().toString();
                             startFetchingFeed();
                         }
-                    }).setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    }).setNegativeButton(getString(R.string.dlgChangeFeed_Cancel), new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int whichButton) {
-                    // Do nothing.
                 }
             }).show();
         }

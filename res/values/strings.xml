@@ -4,4 +4,6 @@
     <string name="mnuChangeSource_title">Choose feed</string>
     <string name="dlgInput_title">Enter a feed URL</string>
     <string name="toaFetchFailed" type="id">Fetching feed failed</string>
+    <string name="dlgChangeFeed_Ok">OK</string>
+    <string name="dlgChangeFeed_Cancel">Cancel</string>
 </resources>
