@@ -19,7 +19,7 @@ import java.util.ArrayList;
 /**
  * Created by Sergey on 10/24/13.
  */
-public class FeedsActivity extends Activity implements AdapterView.OnItemClickListener {
+public class FeedsActivity extends Activity implements AdapterView.OnItemClickListener, AdapterView.OnItemLongClickListener {
 
     FeedsDBAdapter mDbHelper;
 
@@ -32,6 +32,7 @@ public class FeedsActivity extends Activity implements AdapterView.OnItemClickLi
         setContentView(R.layout.feeds_activity_layout);
         lstFeeds = (ListView) findViewById(R.id.lstFeeds);
         lstFeeds.setOnItemClickListener(this);
+        lstFeeds.setOnItemLongClickListener(this);
         setListContent();
     }
 
@@ -39,12 +40,11 @@ public class FeedsActivity extends Activity implements AdapterView.OnItemClickLi
 
     private void setListContent() {
         Cursor c = mDbHelper.fetchAllChannels();
-        if (c.getCount() == 0)
-            Toast.makeText(this, "Add a channel to get started :)", Toast.LENGTH_LONG);
         startManagingCursor(c);
         String[] from = new String[]{FeedsDBAdapter.KEY_NAME, FeedsDBAdapter.KEY_LINK};
         int[] to = new int[]{android.R.id.text1, android.R.id.text2};
         SimpleCursorAdapter adapter = new SimpleCursorAdapter(this, android.R.layout.simple_list_item_2, c, from, to);
+        lstFeeds.setEmptyView(findViewById(R.id.txtEmpty));
         lstFeeds.setAdapter(adapter);
     }
 
@@ -58,38 +58,70 @@ public class FeedsActivity extends Activity implements AdapterView.OnItemClickLi
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.mnuAddFeed) {
-            final EditText inputName = new EditText(this);
-            final EditText inputUrl = new EditText(this);
-            inputUrl.setText("http://");
-            inputUrl.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
-            LinearLayout linearLayout = new LinearLayout(this);
-            linearLayout.setOrientation(LinearLayout.VERTICAL);
-            linearLayout.addView(inputName);
-            linearLayout.addView(inputUrl);
-            inputName.setHint(getString(R.string.feedName));
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.dlgInput_title)
-                    .setView(linearLayout)
-                    .setPositiveButton(getString(R.string.dlgChangeFeed_Ok), new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int whichButton) {
-                            if (inputName.getText().length() > 0 && inputUrl.length() > 0)
-                                mDbHelper.createChannel(inputName.getText().toString(), inputUrl.getText().toString(), 0);
-                            setListContent();
-                        }
-                    }).setNegativeButton(getString(R.string.dlgChangeFeed_Cancel), new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface dialog, int whichButton) {
-                }
-            }).show();
+            editFeed(-1);
         }
         return super.onOptionsItemSelected(item);
     }
 
-    ArrayList<RSSFeed> feeds = new ArrayList<RSSFeed>();
+    AlertDialog currentDialog;
+
+    private void editFeed(long id) {
+        final EditText inputName = new EditText(this);
+        final EditText inputUrl = new EditText(this);
+        final long mId = id;
+        if (id == -1) {
+            inputUrl.setText("http://");
+        } else {
+            Cursor c = mDbHelper.fetchChannelById(id);
+            c.moveToFirst();
+            inputName.setText(c.getString(c.getColumnIndex(FeedsDBAdapter.KEY_NAME)));
+            inputUrl.setText(c.getString(c.getColumnIndex(FeedsDBAdapter.KEY_LINK)));
+        }
+        inputUrl.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        linearLayout.addView(inputName);
+        linearLayout.addView(inputUrl);
+        inputName.setHint(getString(R.string.feedName));
+        AlertDialog.Builder dlgBuilder = new AlertDialog.Builder(this)
+                .setTitle(R.string.dlgInput_title)
+                .setView(linearLayout)
+                .setPositiveButton(getString(R.string.dlgChangeFeed_Ok), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        if (inputName.getText().length() > 0 && inputUrl.length() > 0)
+                            if (mId == -1)
+                                mDbHelper.createChannel(inputName.getText().toString(), inputUrl.getText().toString(), 0);
+                            else
+                                mDbHelper.updateChannelInfo(mId, inputName.getText().toString(), inputUrl.getText().toString());
+                        setListContent();
+                    }
+                }).setNegativeButton(getString(R.string.dlgChangeFeed_Cancel), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                    }
+                });
+        if (id != -1) {
+            dlgBuilder.setNeutralButton(R.string.dlgDeleteButton_text, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    mDbHelper.deleteChannel(mId);
+                    setListContent();
+                    cancelDialog();
+                }
+            });
+        }
+        currentDialog = dlgBuilder.show();
+    }
+
+    private void cancelDialog() {
+        if (currentDialog != null) {
+            currentDialog.cancel();
+        }
+    }
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         Intent result = new Intent();
-        Cursor item = (Cursor)((SQLiteCursor)parent.getAdapter().getItem(position));
+        Cursor item = (Cursor) parent.getAdapter().getItem(position);
         String name = item.getString(item.getColumnIndex(FeedsDBAdapter.KEY_NAME));
         String link = item.getString(item.getColumnIndex(FeedsDBAdapter.KEY_LINK));
         long lastUpdate = item.getLong(item.getColumnIndex(FeedsDBAdapter.KEY_LAST_UPDATE));
@@ -100,19 +132,10 @@ public class FeedsActivity extends Activity implements AdapterView.OnItemClickLi
         setResult(RESULT_OK, result);
         finish();
     }
-}
-
-class RSSFeed implements Serializable {
-    String name;
-    String url;
-
-    RSSFeed(String name, String url) {
-        this.name = name;
-        this.url = url;
-    }
 
     @Override
-    public String toString() {
-        return name;
+    public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+        editFeed(id);
+        return true;
     }
 }

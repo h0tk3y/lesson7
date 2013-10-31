@@ -1,7 +1,6 @@
 package com.ifmomd.igushkin.rss_reader;
 
 import android.os.AsyncTask;
-import android.os.Parcelable;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -21,6 +20,9 @@ import java.util.Stack;
 
 public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> implements ChannelParsedHandler, ItemParsedHandler {
 
+    enum Format {RSS, Atom, Indefinite}
+    Format currentFormat = Format.Indefinite;
+
     List<RSSItem>    items    = new ArrayList<RSSItem>();
     List<RSSChannel> channels = new ArrayList<RSSChannel>();
 
@@ -34,7 +36,7 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> implements
         items.add(result);
     }
 
-    private enum Tag {channel, feed, item, entry, title, link, description, summary, date}
+    private enum Tag {channel, feed, item, entry, title, link, description, summary, pubdate, updated}
 
     ;
 
@@ -62,6 +64,8 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> implements
             try { foundTag = Tag.valueOf(qName.toLowerCase());} catch (IllegalArgumentException ex) {/*it's alright*/}
             if (foundTag != null) tags.push(foundTag);
             if (foundTag == Tag.channel || foundTag == Tag.feed) {
+                if (foundTag == Tag.feed) currentFormat = Format.Atom;
+                if (foundTag == Tag.channel) currentFormat = Format.RSS;
                 currentChannel = new RSSChannel();
             }
             if (foundTag == Tag.item || foundTag == Tag.entry) {
@@ -106,6 +110,8 @@ public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> implements
                         target.description += new String(ch, start, length);
                     if (currentTag == Tag.link)
                         target.link += new String(ch, start, length);
+                    if (target instanceof RSSItem && currentTag == Tag.pubdate || (target instanceof RSSItem && currentTag == Tag.updated))
+                        ((RSSItem)target).dateTime = new String(ch, start, length);
                 }
             }
         }
@@ -163,6 +169,7 @@ class RSSSomething {
 class RSSItem extends RSSSomething implements Serializable {
 
     RSSChannel channel;
+    String dateTime;
 
     @Override
     public String toString() {

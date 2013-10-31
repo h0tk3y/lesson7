@@ -65,11 +65,16 @@ public class FeedsDBAdapter {
     private SQLiteDatabase mDb;
 
     private static final String DATABASE_NAME    = "feeds_data";
-    private static final int    DATABASE_VERSION = 7;
+    private static final int    DATABASE_VERSION = 10;
 
     private final Context mCtx;
 
     private static class DatabaseHelper extends SQLiteOpenHelper {
+
+        @Override
+        public void onOpen(SQLiteDatabase db) {
+            db.execSQL("PRAGMA foreign_keys=ON");
+        }
 
         DatabaseHelper(Context context) {
             super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -132,17 +137,47 @@ public class FeedsDBAdapter {
 
     public Cursor fetchAllItems() {
         return mDb.query(ITEMS_TABLE_NAME, new String[]{KEY_ID, KEY_TITLE,
-                KEY_DESCRIPTION, KEY_LINK, KEY_DATE_TIME, KEY_CHANNEL_ID}, null, null, null, null, null);
+                KEY_DESCRIPTION, KEY_LINK, KEY_DATE_TIME, KEY_CHANNEL_ID}, null, null, null, null, KEY_DATE_TIME+" DESC");
     }
 
     public Cursor fetchItemsByChannel(long channel_id) {
         return mDb.query(ITEMS_TABLE_NAME, new String[]{KEY_ID, KEY_TITLE,
-                KEY_DESCRIPTION, KEY_LINK, KEY_DATE_TIME, KEY_CHANNEL_ID}, KEY_CHANNEL_ID + "=" + channel_id, null, null, null, null);
+                KEY_DESCRIPTION, KEY_LINK, KEY_DATE_TIME, KEY_CHANNEL_ID}, KEY_CHANNEL_ID + "=" + channel_id, null, null, null, KEY_DATE_TIME+" DESC");
     }
 
     public Cursor fetchAllChannels() {
         return mDb.query(CHANNELS_TABLE_NAME, new String[]{KEY_ID, KEY_NAME,
                 KEY_LINK, KEY_LAST_UPDATE}, null, null, null, null, null);
+    }
+
+    public Cursor fetchChannelById(long id) {
+        return mDb.query(CHANNELS_TABLE_NAME, new String[]{KEY_ID, KEY_NAME,
+                KEY_LINK, KEY_LAST_UPDATE}, KEY_ID + "=" + id, null, null, null, null);
+    }
+
+    public RSSChannel getChannelById(long id) {
+        Cursor c = fetchChannelById(id);
+        if (c.getCount() > 0)
+            c.moveToFirst();
+        else
+            return null;
+        RSSChannel result = new RSSChannel();
+        result.id = id;
+        result.title = c.getString(c.getColumnIndex(KEY_NAME));
+        result.link = c.getString(c.getColumnIndex(KEY_LINK));
+        result.lasUpdated = c.getLong(c.getColumnIndex(KEY_LAST_UPDATE));
+        return result;
+    }
+
+    public boolean updateChannelInfo(long id, String name, String link) {
+        ContentValues newValues = new ContentValues();
+        newValues.put(KEY_NAME, name);
+        newValues.put(KEY_LINK, link);
+        return mDb.update(CHANNELS_TABLE_NAME, newValues, KEY_ID + "=" +id, null) > 0;
+    }
+
+    public boolean deleteChannelById(long id) {
+        return mDb.delete(CHANNELS_TABLE_NAME, KEY_ID + "=" +id, null) > 0;
     }
 
     public Cursor fetchItem(long id) throws SQLException {

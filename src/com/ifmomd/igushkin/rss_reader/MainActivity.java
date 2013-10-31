@@ -1,12 +1,12 @@
 package com.ifmomd.igushkin.rss_reader;
 
 import android.app.Activity;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.*;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteCursor;
 import android.os.Bundle;
+import android.preference.Preference;
+import android.preference.PreferenceManager;
 import android.text.Html;
 import android.view.*;
 import android.widget.*;
@@ -23,12 +23,21 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
     ArrayList<RSSItem> rssItems;
     ArrayList<RSSChannel> rssChannels = new ArrayList<RSSChannel>();
 
+    private void showProgress() {
+        findViewById(R.id.prbProgress).setVisibility(View.VISIBLE);
+    }
+
+    private void hideProgress() {
+        findViewById(R.id.prbProgress).setVisibility(View.GONE);
+    }
+
     private BroadcastReceiver updateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (currentChannel != null && intent.hasExtra("channelId") && intent.getLongExtra("channelId", -1) == currentChannel.id) {
-                hideProgress();
                 fillData();
+                onSuccessfulUpdate();
+                hideProgress();
             }
         }
     };
@@ -38,6 +47,7 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         public void onReceive(Context context, Intent intent) {
             if (currentChannel != null && intent.hasExtra("channelId") && intent.getLongExtra("channelId", -1) == currentChannel.id) {
                 onFetchFailed();
+                hideProgress();
             }
         }
     };
@@ -55,6 +65,10 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         registerReceiver(failReceiver, f);
     }
 
+    private void onSuccessfulUpdate() {
+        Toast.makeText(this, getString(R.string.tstOnSuccessfulUpdate), Toast.LENGTH_SHORT).show();
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -67,16 +81,21 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         mDbHelper = new FeedsDBAdapter(this);
         mDbHelper.open();
 
+
+        long prefChannelId = PreferenceManager.getDefaultSharedPreferences(this).getLong("opened channel", -1);
+        if (mDbHelper.fetchAllChannels().getCount() == 0 || prefChannelId == -1) {
+            selectFeed();
+        }
+        if (prefChannelId >= 0) {
+            currentChannel = mDbHelper.getChannelById(prefChannelId);
+        }
+
         onResume();
         setContentView(R.layout.feed_activity_layout);
         lstItems = (ListView) findViewById(R.id.lstItems);
         lstItems.setItemsCanFocus(false);
         lstItems.setOnItemClickListener(this);
         updateItemsList();
-
-        if (mDbHelper.fetchAllChannels().getCount() == 0) {
-            selectFeed();
-        }
     }
 
     private void fillData() {
@@ -90,7 +109,6 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         int[] target = new int[]{android.R.id.text1};
         SimpleCursorAdapter adapter = new SimpleCursorAdapter(this, android.R.layout.simple_list_item_1, itemsCursor, source, target);
         lstItems.setAdapter(adapter);
-        hideProgress();
     }
 
     @Override
@@ -108,13 +126,18 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         Intent i = new Intent(this, FeedFetchingService.class);
         i.putExtra("channelId", currentChannel != null ? currentChannel.id : -1);
         i.putExtra("url", currentChannel!= null? currentChannel.link : "");
+        if (currentChannel != null) {
+            SharedPreferences.Editor edit = PreferenceManager.getDefaultSharedPreferences(this).edit();
+            edit.putLong("opened channel", currentChannel.id);
+            edit.commit();
+        }
         startService(i);
     }
 
     private void updateItemsList() {
         updateCurrentFeed();
-        showProgress();
         fillData();
+        showProgress();
     }
 
     @Override
@@ -158,19 +181,14 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        RSSItem r = (RSSItem) parent.getAdapter().getItem(position);
         Intent i = new Intent(this, BrowseActivity.class);
-        i.putExtra("data", r.description);
-        i.putExtra("use UTF-8", r.link.contains("bash")); //horrible piece of shit
+        Cursor item = (Cursor)lstItems.getAdapter().getItem(position);
+        String content =item.getString(item.getColumnIndex(FeedsDBAdapter.KEY_DESCRIPTION));
+        String link = item.getString(item.getColumnIndex(FeedsDBAdapter.KEY_LINK));
+        i.putExtra("data", content);
+        i.putExtra("link", link);
+        i.putExtra("use UTF-8", link.contains("bash")); //horrible piece of shit
         startActivity(i);
-    }
-
-    private void showProgress() {
-        findViewById(R.id.pbProgress).setVisibility(View.VISIBLE);
-    }
-
-    private void hideProgress() {
-        findViewById(R.id.pbProgress).setVisibility(View.INVISIBLE);
     }
 
     private void onFetchFailed() {
