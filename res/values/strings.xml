@@ -6,4 +6,7 @@
     <string name="toaFetchFailed" type="id">Fetching feed failed</string>
     <string name="dlgChangeFeed_Ok">OK</string>
     <string name="dlgChangeFeed_Cancel">Cancel</string>
+    <string name="mnuRefresh_title">Refresh</string>
+    <string name="mnuFeedsAdd_titie">Add</string>
+    <string name="feedName">Feed name</string>
 </resources>

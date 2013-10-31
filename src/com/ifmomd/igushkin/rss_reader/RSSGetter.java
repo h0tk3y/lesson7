@@ -1,104 +1,168 @@
 package com.ifmomd.igushkin.rss_reader;
 
-import android.content.Entity;
-import android.net.http.AndroidHttpClient;
 import android.os.AsyncTask;
+import android.os.Parcelable;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import java.io.IOException;
+import javax.xml.parsers.*;
+import java.io.*;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
-/**
- * Created by Sergey on 10/16/13.
- */
-public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> {
+public class RSSGetter extends AsyncTask<String, Void, List<RSSItem>> implements ChannelParsedHandler, ItemParsedHandler {
 
-    private enum RSSFormat {Common, StackOverflow}
+    List<RSSItem>    items    = new ArrayList<RSSItem>();
+    List<RSSChannel> channels = new ArrayList<RSSChannel>();
+
+    @Override
+    public void onChannelParsed(RSSChannel result) {
+        channels.add(result);
+    }
+
+    @Override
+    public void onItemParsed(RSSItem result) {
+        items.add(result);
+    }
+
+    private enum Tag {channel, feed, item, entry, title, link, description, summary, date}
+
+    ;
+
+    class TagHandler extends DefaultHandler {
+        ItemParsedHandler    itemParsedHandler;
+        ChannelParsedHandler channelParsedHandler;
+
+
+        public TagHandler(ItemParsedHandler itemParsedHandler, ChannelParsedHandler channelParsedHandler) {
+            super();
+            this.itemParsedHandler = itemParsedHandler;
+            this.channelParsedHandler = channelParsedHandler;
+        }
+
+        RSSItem    currentItem;
+        RSSChannel currentChannel;
+        boolean    isItem; //otherwise parsing channel/feed
+
+        private Stack<Tag> tags = new Stack<Tag>();
+
+        @Override
+        public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+            super.startElement(uri, localName, qName, attributes);
+            Tag foundTag = null;
+            try { foundTag = Tag.valueOf(qName.toLowerCase());} catch (IllegalArgumentException ex) {/*it's alright*/}
+            if (foundTag != null) tags.push(foundTag);
+            if (foundTag == Tag.channel || foundTag == Tag.feed) {
+                currentChannel = new RSSChannel();
+            }
+            if (foundTag == Tag.item || foundTag == Tag.entry) {
+                isItem = true;
+                currentItem = new RSSItem();
+                currentItem.channel = currentChannel;
+            }
+            if (foundTag == Tag.link) {
+                String link = attributes.getValue("href");
+                if (link != null)
+                    (isItem ? currentItem : currentChannel).link = link;
+            }
+        }
+
+        @Override
+        public void endElement(String uri, String localName, String qName) throws SAXException {
+            super.endElement(uri, localName, qName);
+            Tag foundTag = null;
+            try { foundTag = Tag.valueOf(qName.toLowerCase());} catch (IllegalArgumentException ex) {/*it's alright*/}
+            if (foundTag != null)
+                if (tags.size() > 0 && tags.peek() == foundTag) tags.pop(); //else TODO something's clearly wrong
+            if (foundTag == Tag.channel || foundTag == Tag.feed) {
+                channelParsedHandler.onChannelParsed(currentChannel);
+                currentChannel = null;
+            }
+            if (foundTag == Tag.item || foundTag == Tag.entry) {
+                itemParsedHandler.onItemParsed(currentItem);
+                isItem = false;
+                currentItem = null;
+            }
+        }
+
+        @Override
+        public void characters(char[] ch, int start, int length) throws SAXException {
+            if (tags.size() > 0) {
+                Tag currentTag = tags.peek();
+                RSSSomething target = isItem ? currentItem : currentChannel;
+                if (target != null) {
+                    if (currentTag == Tag.title)
+                        target.title += new String(ch, start, length);
+                    if (currentTag == Tag.description || currentTag == Tag.summary)
+                        target.description += new String(ch, start, length);
+                    if (currentTag == Tag.link)
+                        target.link += new String(ch, start, length);
+                }
+            }
+        }
+    }
 
     @Override
     protected List<RSSItem> doInBackground(String... params) {
-        List<RSSItem> result = null;
         if (params.length > 0) {
             String url = params[0];
             HttpClient client = new DefaultHttpClient();
             HttpGet request = new HttpGet(URI.create(url));
             HttpResponse response = null;
+            boolean winEncoding = url.toLowerCase().contains("bash"); //horrible peace of shit
+            InputStream content = null;
             try {
                 response = client.execute(request);
                 if (response != null) {
                     HttpEntity e = response.getEntity();
                     DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
                     DocumentBuilder db = dbf.newDocumentBuilder();
-                    Document d = db.parse(e.getContent());
-                    Element n = (Element) d.getDocumentElement();
-
-                    RSSFormat format = RSSFormat.Common;
-                    result = new ArrayList<RSSItem>();
-                    NodeList items = d.getElementsByTagName("item");
-                    if (items.getLength() == 0) {
-                        items = d.getElementsByTagName("entry");
-                        format = RSSFormat.StackOverflow;
-                    }
-                    for (int i = 0; i < items.getLength(); i++) {
-                        RSSItem r = new RSSItem();
-                        Node item = items.item(i);
-                        NodeList properties = item.getChildNodes();
-                        for (int j = 0; j < properties.getLength(); j++) {
-                            Node property = properties.item(j);
-                            String name = property.getNodeName();
-                            if (name.equalsIgnoreCase("title")) {
-                                r.title = property.getFirstChild().getNodeValue();
-                            } else if (name.equalsIgnoreCase("link")) {
-                                if (format == RSSFormat.StackOverflow)
-                                    r.link = property.getAttributes().getNamedItem("href").getTextContent();
-                                else
-                                    r.link = property.getFirstChild().getNodeValue();
-                            } else if (name.equalsIgnoreCase("description") || name.equalsIgnoreCase("summary")) {
-                                StringBuilder text = new StringBuilder();
-                                NodeList chars = property.getChildNodes();
-                                for (int k = 0; k < chars.getLength(); k++) {
-                                    text.append(chars.item(k).getNodeValue());
-                                }
-                                r.description = text.toString();
-                            } else if (name.equalsIgnoreCase("date")) {
-                                r.pubDate = property.getFirstChild().getNodeValue();
-                            }
-                        }
-                        result.add(r);
-                    }
-                    // }
+                    content = e.getContent();
+                    Reader r = new InputStreamReader(content, winEncoding ? "Windows-1251" : "UTF-8");
+                    SAXParserFactory factory = SAXParserFactory.newInstance();
+                    SAXParser parser = factory.newSAXParser();
+                    TagHandler tagHandler = new TagHandler(this, this) {
+                    };
+                    parser.parse(new InputSource(r), tagHandler);
                 }
             } catch (ParserConfigurationException ex) {
-                ex.printStackTrace();
-            } catch (SAXException ex) {
                 ex.printStackTrace();
             } catch (IOException ex) {
                 ex.printStackTrace();
             } catch (Exception ex) {
                 ex.printStackTrace();
+            } finally {
+                if (content != null) try {
+                    content.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
-        return result;
+        return items;
     }
 }
 
-class RSSItem {
-    String title, link, description, guid, pubDate;
+class RSSSomething {
+    String title       = "";
+    String link        = "";
+    String description = "";
+
+    long id = -1;
+}
+
+class RSSItem extends RSSSomething implements Serializable {
+
+    RSSChannel channel;
 
     @Override
     public String toString() {
@@ -106,6 +170,14 @@ class RSSItem {
     }
 }
 
-class RSSChannel {
-    String title, link, description;
+class RSSChannel extends RSSSomething implements Serializable {
+    long lasUpdated;
+}
+
+interface ItemParsedHandler {
+    void onItemParsed(RSSItem result);
+}
+
+interface ChannelParsedHandler {
+    void onChannelParsed(RSSChannel result);
 }
