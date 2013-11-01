@@ -68,7 +68,7 @@ public class FeedFetchingService extends IntentService {
                 @Override
                 protected Void doInBackground(Void... params) {
                     String dateTimeFormat =
-                            currentFormat == Format.Atom? "yyyy-MM-dd'T'HH:mm:ssZ" : "EEE, dd MMM yyyy HH:mm:ss Z";
+                            currentFormat == Format.Atom ? "yyyy-MM-dd'T'HH:mm:ssZ" : "EEE, dd MMM yyyy HH:mm:ss Z";
                     SimpleDateFormat format = new SimpleDateFormat(dateTimeFormat);
 
                     super.onPostExecute(null);
@@ -81,16 +81,21 @@ public class FeedFetchingService extends IntentService {
                     for (RSSItem item : workingList) {
                         long time;
                         try {
-                            time = item.dateTime != null ? format.parse(item.dateTime.replaceAll("Z$", "+0000")).getTime() : System.currentTimeMillis();
+                            time = item.dateTime != null
+                                   ? format.parse(item.dateTime.replaceAll("Z$", "+0000")).getTime()
+                                   : System.currentTimeMillis();
                         } catch (ParseException ex) {
-                            time = System.currentTimeMillis();}
-                        mDbHelper.createItem(item.title, item.description, item.link, time/1000, channelId);
+                            time = System.currentTimeMillis();
+                        }
+                        mDbHelper.createItem(item.title, item.description, item.link, time / 1000, channelId);
                     }
-                    Intent broadcastIntent = new Intent();
-                    broadcastIntent.setAction("com.ifmomd.igushkin.rss_reader.CHANNEL_UPDATED");
-                    broadcastIntent.addCategory(Intent.CATEGORY_DEFAULT);
-                    broadcastIntent.putExtra("channelId", channelId);
-                    sendBroadcast(broadcastIntent);
+                    if (workingList.size() > 0) {
+                        Intent broadcastIntent = new Intent();
+                        broadcastIntent.setAction("com.ifmomd.igushkin.rss_reader.CHANNEL_UPDATED");
+                        broadcastIntent.addCategory(Intent.CATEGORY_DEFAULT);
+                        broadcastIntent.putExtra("channelId", channelId);
+                        sendBroadcast(broadcastIntent);
+                    }
                     return null;
                 }
             }.execute(null);
